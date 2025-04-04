@@ -1,0 +1,67 @@
+{% extends "base_improved.html" %}
+{% block title %}관리자: 신고 관리{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>신고 관리</h2>
+    
+    {% if reports %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>신고자</th>
+                    <th>대상 유형</th>
+                    <th>대상 이름</th>
+                    <th>사유</th>
+                    <th>상태</th>
+                    <th>신고일</th>
+                    <th>작업</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                    <tr>
+                        <td>{{ report.id[:8] }}...</td>
+                        <td>{{ report.reporter_name }}</td>
+                        <td>{{ '사용자' if report.target_type == 'user' else '상품' }}</td>
+                        <td>{{ report.target_name }}</td>
+                        <td>{{ report.reason }}</td>
+                        <td>
+                            {% if report.status == 'pending' %}
+                                <span class="badge badge-warning">대기 중</span>
+                            {% elif report.status == 'approved' %}
+                                <span class="badge badge-success">승인됨</span>
+                            {% elif report.status == 'rejected' %}
+                                <span class="badge badge-danger">거부됨</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ report.created_at }}</td>
+                        <td>
+                            {% if report.status == 'pending' %}
+                                <form method="POST" action="{{ url_for('process_report', report_id=report.id) }}" class="d-inline">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="approve">
+                                    <button type="submit" class="btn btn-sm btn-success">승인</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('process_report', report_id=report.id) }}" class="d-inline">
+                                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="action" value="reject">
+                                    <button type="submit" class="btn btn-sm btn-danger">거부</button>
+                                </form>
+                            {% else %}
+                                <span class="text-muted">처리 완료</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="alert alert-info">
+            처리할 신고가 없습니다.
+        </div>
+    {% endif %}
+    
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+</div>
+{% endblock %}

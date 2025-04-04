@@ -1,0 +1,62 @@
+{% extends "base_improved.html" %}
+{% block title %}관리자: 상품 관리{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>상품 관리</h2>
+    
+    {% if products %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>제목</th>
+                    <th>판매자</th>
+                    <th>가격</th>
+                    <th>상태</th>
+                    <th>신고 횟수</th>
+                    <th>등록일</th>
+                    <th>작업</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in products %}
+                    <tr>
+                        <td>{{ product.id[:8] }}...</td>
+                        <td>{{ product.title }}</td>
+                        <td>{{ product.seller_name }}</td>
+                        <td>{{ product.price }}</td>
+                        <td>
+                            {% if product.status == 'active' %}
+                                <span class="badge badge-success">정상</span>
+                            {% elif product.status == 'warning' %}
+                                <span class="badge badge-warning">주의</span>
+                            {% elif product.status == 'blocked' %}
+                                <span class="badge badge-danger">차단됨</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ product.report_count }}</td>
+                        <td>{{ product.created_at }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('change_product_status', product_id=product.id) }}" class="d-inline">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <select name="status" class="form-control form-control-sm d-inline-block" style="width: auto;">
+                                    <option value="active" {% if product.status == 'active' %}selected{% endif %}>정상</option>
+                                    <option value="warning" {% if product.status == 'warning' %}selected{% endif %}>주의</option>
+                                    <option value="blocked" {% if product.status == 'blocked' %}selected{% endif %}>차단</option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary">변경</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="alert alert-info">
+            등록된 상품이 없습니다.
+        </div>
+    {% endif %}
+    
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+</div>
+{% endblock %}

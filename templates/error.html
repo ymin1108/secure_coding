@@ -1,0 +1,7 @@
+{% extends "base_improved.html" %}
+{% block title %}오류{% endblock %}
+{% block content %}
+<h2>오류가 발생했습니다</h2>
+<p>{{ error }}</p>
+<p><a href="{{ url_for('index') }}">홈으로 돌아가기</a></p>
+{% endblock %}

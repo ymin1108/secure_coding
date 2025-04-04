@@ -1,0 +1,114 @@
+{% extends "base_improved.html" %}
+{% block title %}채팅방{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>{{ other_user.username }}님과의 대화</h2>
+    
+    <div class="card">
+        <div class="card-body chat-box" id="chat-box" style="height: 400px; overflow-y: auto;">
+            {% for message in messages %}
+                <div class="message {% if message.sender_id == session.user_id %}sent{% else %}received{% endif %}">
+                    <div class="message-content">
+                        <strong>{{ message.sender_name }}</strong>
+                        <p>{{ message.message }}</p>
+                        <small class="text-muted">{{ message.created_at }}</small>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="card-footer">
+            <form method="POST" action="{{ url_for('chat_room', user_id=other_user.id) }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="message" placeholder="메시지를 입력하세요..." required maxlength="500">
+                    <div class="input-group-append">
+                        <button class="btn btn-primary" type="submit">전송</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <a href="{{ url_for('message_list') }}" class="btn btn-secondary mt-3">메시지 목록으로 돌아가기</a>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 채팅 박스를 항상 아래로 스크롤
+        const chatBox = document.getElementById('chat-box');
+        chatBox.scrollTop = chatBox.scrollHeight;
+        
+        // Socket.IO 연결
+        const socket = io();
+        
+        // 채팅방 참가
+        socket.emit('join', {room: '{{ room_id }}'});
+        
+        // 새 메시지 수신
+        socket.on('new_message', function(data) {
+            if (data.room_id === '{{ room_id }}') {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message ' + (data.sender_id === '{{ session.user_id }}' ? 'sent' : 'received');
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                
+                const senderName = document.createElement('strong');
+                senderName.textContent = data.sender_name;
+                
+                const messageText = document.createElement('p');
+                messageText.textContent = data.message;
+                
+                const timestamp = document.createElement('small');
+                timestamp.className = 'text-muted';
+                timestamp.textContent = new Date().toLocaleString();
+                
+                contentDiv.appendChild(senderName);
+                contentDiv.appendChild(messageText);
+                contentDiv.appendChild(timestamp);
+                
+                messageDiv.appendChild(contentDiv);
+                chatBox.appendChild(messageDiv);
+                
+                // 스크롤 아래로
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        });
+        
+        // 페이지 나갈 때 채팅방 퇴장
+        window.addEventListener('beforeunload', function() {
+            socket.emit('leave', {room: '{{ room_id }}'});
+        });
+    });
+</script>
+
+<style>
+    .message {
+        margin-bottom: 15px;
+        display: flex;
+    }
+    
+    .sent {
+        justify-content: flex-end;
+    }
+    
+    .received {
+        justify-content: flex-start;
+    }
+    
+    .message-content {
+        max-width: 70%;
+        padding: 10px;
+        border-radius: 10px;
+    }
+    
+    .sent .message-content {
+        background-color: #dcf8c6;
+    }
+    
+    .received .message-content {
+        background-color: #f1f0f0;
+    }
+</style>
+{% endblock %}

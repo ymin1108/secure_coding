@@ -1,0 +1,30 @@
+{% extends "base_improved.html" %}
+{% block title %}메시지 목록{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>메시지 목록</h2>
+    
+    {% if chat_rooms %}
+        <div class="list-group">
+            {% for room in chat_rooms %}
+                <a href="{{ url_for('chat_room', user_id=room.participant_id) }}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">{{ room.participant_name }}</h5>
+                        <small>{{ room.last_message_time }}</small>
+                    </div>
+                    <p class="mb-1">{{ room.last_message }}</p>
+                    {% if room.unread_count > 0 %}
+                        <span class="badge badge-primary badge-pill">{{ room.unread_count }}</span>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            아직 메시지가 없습니다.
+        </div>
+    {% endif %}
+    
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mt-3">대시보드로 돌아가기</a>
+</div>
+{% endblock %}

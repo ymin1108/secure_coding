@@ -1,0 +1,58 @@
+{% extends "base_improved.html" %}
+{% block title %}관리자: 사용자 관리{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>사용자 관리</h2>
+    
+    {% if users %}
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>사용자명</th>
+                    <th>상태</th>
+                    <th>신고 횟수</th>
+                    <th>가입일</th>
+                    <th>작업</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                    <tr>
+                        <td>{{ user.id[:8] }}...</td>
+                        <td>{{ user.username }}</td>
+                        <td>
+                            {% if user.status == 'active' %}
+                                <span class="badge badge-success">정상</span>
+                            {% elif user.status == 'warning' %}
+                                <span class="badge badge-warning">주의</span>
+                            {% elif user.status == 'dormant' %}
+                                <span class="badge badge-danger">휴면</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.report_count }}</td>
+                        <td>{{ user.created_at }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('change_user_status', user_id=user.id) }}" class="d-inline">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <select name="status" class="form-control form-control-sm d-inline-block" style="width: auto;">
+                                    <option value="active" {% if user.status == 'active' %}selected{% endif %}>정상</option>
+                                    <option value="warning" {% if user.status == 'warning' %}selected{% endif %}>주의</option>
+                                    <option value="dormant" {% if user.status == 'dormant' %}selected{% endif %}>휴면</option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary">변경</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="alert alert-info">
+            등록된 사용자가 없습니다.
+        </div>
+    {% endif %}
+    
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+</div>
+{% endblock %}
