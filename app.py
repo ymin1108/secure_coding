@@ -322,9 +322,14 @@ def login():
             return redirect(url_for('login'))
         
         # 계정 잠금 확인
-        if user['locked_until'] and datetime.fromisoformat(user['locked_until']) > datetime.now():
-            flash('계정이 잠겨 있습니다. 나중에 다시 시도해주세요.')
-            return redirect(url_for('login'))
+        if user['locked_until'] is not None:
+            try:
+                lock_time = datetime.fromisoformat(user['locked_until'])
+                if lock_time > datetime.now():
+                    flash('계정이 잠겨 있습니다. 나중에 다시 시도해주세요.')
+                    return redirect(url_for('login'))
+            except (ValueError, TypeError):
+                pass  # 잘못된 형식인 경우 무시
         
         # 휴면 계정 확인
         if user['status'] == 'dormant':
