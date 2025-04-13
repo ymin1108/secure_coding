@@ -219,7 +219,7 @@ def log_action(user_id, action, details=None):
 # 보안 헤더 설정
 @app.after_request
 def add_security_headers(response):
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';"
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';"
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
@@ -1021,11 +1021,83 @@ def handle_send_message_event(data):
     data['username'] = sanitize_input(data.get('username', '익명'))
     data['message'] = sanitize_input(data['message'])
     data['message_id'] = str(uuid.uuid4())
+    data['sender_id'] = user_id
     
     # 감사 로그 기록
     log_action(user_id, "CHAT_MESSAGE", f"Chat message sent: {data['message'][:50]}...")
     
+    # message 이벤트로 브로드캐스트 (모든 클라이언트에게 전송)
     send(data, broadcast=True)
+
+# Socket.IO: 채팅방 참가
+@socketio.on('join')
+def on_join(data):
+    if 'user_id' not in session:
+        return
+    
+    room = data.get('room')
+    if room:
+        join_room(room)
+        print(f"User {session['user_id']} joined room {room}")
+
+# Socket.IO: 채팅방 퇴장
+@socketio.on('leave')
+def on_leave(data):
+    if 'user_id' not in session:
+        return
+    
+    room = data.get('room')
+    if room:
+        leave_room(room)
+        print(f"User {session['user_id']} left room {room}")
+
+# Socket.IO: 1대1 메시지 전송
+@socketio.on('private_message')
+def handle_private_message(data):
+    if 'user_id' not in session:
+        return
+    
+    receiver_id = data.get('receiver_id')
+    message = data.get('message')
+    
+    if not receiver_id or not message or len(message) > 500:
+        return
+    
+    # XSS 방어
+    message = sanitize_input(message)
+    
+    # 메시지 저장
+    with app.app_context():
+        db = get_db()
+        cursor = db.cursor()
+        
+        # 발신자 정보 가져오기
+        cursor.execute("SELECT username FROM user WHERE id = ?", (session['user_id'],))
+        sender = cursor.fetchone()
+        sender_name = sender['username'] if sender else '알 수 없음'
+        
+        message_id = str(uuid.uuid4())
+        cursor.execute(
+            "INSERT INTO private_message (id, sender_id, receiver_id, message) VALUES (?, ?, ?, ?)",
+            (message_id, session['user_id'], receiver_id, message)
+        )
+        db.commit()
+    
+    # 'new_message' 이벤트로 발송 (클라이언트 스크립트와 일치)
+    emit('new_message', {
+        'sender_id': session['user_id'],
+        'sender_name': sender_name,
+        'message': message,
+        'created_at': datetime.now().isoformat()
+    }, room=receiver_id)
+    
+    # 추가로 'new_private_message' 이벤트도 발송 (이전 코드와의 호환성)
+    emit('new_private_message', {
+        'sender_id': session['user_id'],
+        'sender_name': sender_name,
+        'message': message,
+        'created_at': datetime.now().isoformat()
+    }, room=receiver_id)
 
 # Socket.IO: 채팅방 참가
 @socketio.on('join')

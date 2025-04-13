@@ -15,9 +15,11 @@
 
 <h3>실시간 채팅</h3>
 <div id="chat">
-  <ul id="messages"></ul>
-  <input id="chat_input" type="text" placeholder="메시지를 입력하세요">
-  <button onclick="sendMessage()">전송</button>
+  <div id="messages" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;"></div>
+  <div style="display: flex;">
+    <input id="chat_input" type="text" placeholder="메시지를 입력하세요" style="flex-grow: 1; margin-right: 10px;">
+    <button onclick="sendMessage()" style="width: 80px;">전송</button>
+  </div>
 </div>
 
 <script type="text/javascript">
@@ -25,20 +27,60 @@
   socket.on('connect', function() {
     console.log("채팅 서버에 연결됨");
   });
+  
   socket.on('message', function(data) {
     var messages = document.getElementById('messages');
-    var item = document.createElement('li');
-    item.textContent = data.username + ": " + data.message;
+    var item = document.createElement('div');
+    item.style.marginBottom = '10px';
+    item.style.padding = '5px';
+    item.style.borderRadius = '5px';
+    
+    // 내가 보낸 메시지는 오른쪽 정렬, 다른 색으로 표시
+    if (data.sender_id === "{{ session.user_id }}") {
+      item.style.backgroundColor = '#dcf8c6';
+      item.style.marginLeft = 'auto';
+      item.style.marginRight = '0';
+      item.style.maxWidth = '70%';
+      item.style.textAlign = 'right';
+    } else {
+      item.style.backgroundColor = '#f1f0f0';
+      item.style.marginLeft = '0';
+      item.style.marginRight = 'auto';
+      item.style.maxWidth = '70%';
+    }
+    
+    var username = document.createElement('strong');
+    username.textContent = data.username;
+    
+    var messageText = document.createElement('p');
+    messageText.textContent = data.message;
+    messageText.style.margin = '5px 0';
+    
+    item.appendChild(username);
+    item.appendChild(messageText);
     messages.appendChild(item);
-    window.scrollTo(0, document.body.scrollHeight);
+    
+    // 새 메시지가 오면 스크롤을 아래로
+    messages.scrollTop = messages.scrollHeight;
   });
+  
   function sendMessage() {
     var input = document.getElementById('chat_input');
     var message = input.value;
     if (message) {
-      socket.emit('send_message', { 'username': "{{ user.username }}", 'message': message });
+      socket.emit('send_message', { 
+        'username': "{{ user.username }}", 
+        'message': message 
+      });
       input.value = "";
     }
   }
+  
+  // Enter 키로 메시지 전송
+  document.getElementById('chat_input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
+  });
 </script>
 {% endblock %}

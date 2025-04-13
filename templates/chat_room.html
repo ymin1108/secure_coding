@@ -35,52 +35,62 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 채팅 박스를 항상 아래로 스크롤
-        const chatBox = document.getElementById('chat-box');
-        chatBox.scrollTop = chatBox.scrollHeight;
-        
-        // Socket.IO 연결
-        const socket = io();
-        
-        // 채팅방 참가
-        socket.emit('join', {room: '{{ room_id }}'});
-        
-        // 새 메시지 수신
-        socket.on('new_message', function(data) {
-            if (data.room_id === '{{ room_id }}') {
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message ' + (data.sender_id === '{{ session.user_id }}' ? 'sent' : 'received');
-                
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'message-content';
-                
-                const senderName = document.createElement('strong');
-                senderName.textContent = data.sender_name;
-                
-                const messageText = document.createElement('p');
-                messageText.textContent = data.message;
-                
-                const timestamp = document.createElement('small');
-                timestamp.className = 'text-muted';
-                timestamp.textContent = new Date().toLocaleString();
-                
-                contentDiv.appendChild(senderName);
-                contentDiv.appendChild(messageText);
-                contentDiv.appendChild(timestamp);
-                
-                messageDiv.appendChild(contentDiv);
-                chatBox.appendChild(messageDiv);
-                
-                // 스크롤 아래로
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        });
-        
-        // 페이지 나갈 때 채팅방 퇴장
-        window.addEventListener('beforeunload', function() {
-            socket.emit('leave', {room: '{{ room_id }}'});
-        });
+    // 채팅 박스를 항상 아래로 스크롤
+    const chatBox = document.getElementById('chat-box');
+    chatBox.scrollTop = chatBox.scrollHeight;
+    
+    // Socket.IO 연결
+    const socket = io();
+    
+    // 채팅방 참가
+    socket.emit('join', {room: '{{ room_id }}'});
+    
+    // 새 메시지 수신 (서버에서 new_message와 new_private_message 두 이벤트 모두 처리)
+    socket.on('new_message', function(data) {
+        if (data.room_id === '{{ room_id }}') {
+            addMessageToChat(data);
+        }
     });
+    
+    socket.on('new_private_message', function(data) {
+        console.log('Private message received:', data);
+        addMessageToChat(data);
+    });
+    
+    // 메시지 추가 함수
+    function addMessageToChat(data) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'message ' + (data.sender_id === '{{ session.user_id }}' ? 'sent' : 'received');
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        
+        const senderName = document.createElement('strong');
+        senderName.textContent = data.sender_name || '상대방';
+        
+        const messageText = document.createElement('p');
+        messageText.textContent = data.message;
+        
+        const timestamp = document.createElement('small');
+        timestamp.className = 'text-muted';
+        timestamp.textContent = data.created_at ? new Date(data.created_at).toLocaleString() : new Date().toLocaleString();
+        
+        contentDiv.appendChild(senderName);
+        contentDiv.appendChild(messageText);
+        contentDiv.appendChild(timestamp);
+        
+        messageDiv.appendChild(contentDiv);
+        chatBox.appendChild(messageDiv);
+        
+        // 스크롤 아래로
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    // 페이지 나갈 때 채팅방 퇴장
+    window.addEventListener('beforeunload', function() {
+        socket.emit('leave', {room: '{{ room_id }}'});
+    });
+});
 </script>
 
 <style>
