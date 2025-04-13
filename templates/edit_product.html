@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}상품 수정{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>상품 수정</h2>
+    
+    <form method="post">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label for="title">제목</label>
+            <input type="text" class="form-control" id="title" name="title" value="{{ product.title }}" required>
+        </div>
+        <div class="form-group">
+            <label for="description">설명</label>
+            <textarea class="form-control" id="description" name="description" rows="5" required>{{ product.description }}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="price">가격</label>
+            <input type="text" class="form-control" id="price" name="price" value="{{ product.price }}" required>
+        </div>
+        <button type="submit" class="btn btn-primary">저장</button>
+        <a href="{{ url_for('my_products') }}" class="btn btn-secondary">취소</a>
+    </form>
+</div>
+{% endblock %}

@@ -344,6 +344,7 @@ def login():
         # 로그인 성공 처리
         session.clear()
         session['user_id'] = user['id']
+        session['is_admin'] = bool(user['is_admin'])  # 관리자 여부 세션에 저장
         session.permanent = True  # 세션 만료 시간 적용
         
         # 감사 로그 기록
@@ -478,38 +479,43 @@ def new_product():
             flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
             return redirect(url_for('new_product'))
         
-        title = sanitize_input(request.form['title'])
-        description = sanitize_input(request.form['description'])
-        price = sanitize_input(request.form['price'])
-        
-        # 입력값 검증
-        if not title or len(title) < 2 or len(title) > 100:
-            flash('제목은 2-100자 사이여야 합니다.')
+        try:
+            title = sanitize_input(request.form['title'])
+            description = sanitize_input(request.form['description'])
+            price = sanitize_input(request.form['price'], check_banned=False)  # 가격은 금지어 검사 제외
+            
+            # 입력값 검증
+            if not title or len(title) < 2 or len(title) > 100:
+                flash('제목은 2-100자 사이여야 합니다.')
+                return redirect(url_for('new_product'))
+            
+            if not description or len(description) < 10 or len(description) > 1000:
+                flash('설명은 10-1000자 사이여야 합니다.')
+                return redirect(url_for('new_product'))
+            
+            if not validate_price(price):
+                flash('가격은 숫자만 입력 가능합니다.')
+                return redirect(url_for('new_product'))
+            
+            db = get_db()
+            cursor = db.cursor()
+            product_id = str(uuid.uuid4())
+            
+            cursor.execute(
+                "INSERT INTO product (id, title, description, price, seller_id) VALUES (?, ?, ?, ?, ?)",
+                (product_id, title, description, price, session['user_id'])
+            )
+            db.commit()
+            
+            # 감사 로그 기록
+            log_action(session['user_id'], "PRODUCT_CREATE", f"Created product: {title}")
+            
+            flash('상품이 등록되었습니다.')
+            return redirect(url_for('dashboard'))
+            
+        except ValueError as e:
+            flash(str(e))
             return redirect(url_for('new_product'))
-        
-        if not description or len(description) < 10 or len(description) > 1000:
-            flash('설명은 10-1000자 사이여야 합니다.')
-            return redirect(url_for('new_product'))
-        
-        if not validate_price(price):
-            flash('가격은 숫자만 입력 가능합니다.')
-            return redirect(url_for('new_product'))
-        
-        db = get_db()
-        cursor = db.cursor()
-        product_id = str(uuid.uuid4())
-        
-        cursor.execute(
-            "INSERT INTO product (id, title, description, price, seller_id) VALUES (?, ?, ?, ?, ?)",
-            (product_id, title, description, price, session['user_id'])
-        )
-        db.commit()
-        
-        # 감사 로그 기록
-        log_action(session['user_id'], "PRODUCT_CREATE", f"Created product: {title}")
-        
-        flash('상품이 등록되었습니다.')
-        return redirect(url_for('dashboard'))
     
     return render_template('new_product.html')
 
@@ -1074,6 +1080,219 @@ def handle_private_message(data):
         'message': message,
         'created_at': datetime.now().isoformat()
     }, room=receiver_id)
+
+
+    # 사용자 프로필 조회
+@app.route('/user/<user_id>')
+def view_user(user_id):
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 사용자 정보 조회
+    cursor.execute("SELECT id, username, bio, status, created_at FROM user WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        flash('사용자를 찾을 수 없습니다.')
+        return redirect(url_for('dashboard'))
+    
+    # 휴면 계정인 경우 접근 제한
+    if user['status'] == 'dormant':
+        flash('이 사용자는 현재 접근할 수 없습니다.')
+        return redirect(url_for('dashboard'))
+    
+    # 사용자의 상품 조회
+    cursor.execute("""
+        SELECT * FROM product 
+        WHERE seller_id = ? AND status != 'blocked'
+        ORDER BY created_at DESC
+    """, (user_id,))
+    
+    products = cursor.fetchall()
+    
+    # 현재 로그인한 사용자인지 확인
+    is_owner = 'user_id' in session and session['user_id'] == user_id
+    
+    return render_template('view_user.html', user=user, products=products, is_owner=is_owner)
+
+# 내 상품 관리 페이지
+@app.route('/my_products')
+@login_required
+def my_products():
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 현재 사용자가 등록한 상품 조회
+    cursor.execute("""
+        SELECT * FROM product 
+        WHERE seller_id = ? 
+        ORDER BY created_at DESC
+    """, (session['user_id'],))
+    
+    products = cursor.fetchall()
+    
+    return render_template('my_products.html', products=products)
+
+# 상품 수정 페이지
+@app.route('/product/<product_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_product(product_id):
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 상품 조회
+    cursor.execute("SELECT * FROM product WHERE id = ?", (product_id,))
+    product = cursor.fetchone()
+    
+    if not product:
+        flash('상품을 찾을 수 없습니다.')
+        return redirect(url_for('my_products'))
+    
+    # 본인 상품인지 확인
+    if product['seller_id'] != session['user_id']:
+        flash('자신의 상품만 수정할 수 있습니다.')
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        # CSRF 토큰 검증
+        if not validate_csrf_token():
+            flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
+            return redirect(url_for('edit_product', product_id=product_id))
+        
+        title = sanitize_input(request.form['title'])
+        description = sanitize_input(request.form['description'])
+        price = sanitize_input(request.form['price'])
+        
+        # 입력값 검증
+        if not title or len(title) < 2 or len(title) > 100:
+            flash('제목은 2-100자 사이여야 합니다.')
+            return redirect(url_for('edit_product', product_id=product_id))
+        
+        if not description or len(description) < 10 or len(description) > 1000:
+            flash('설명은 10-1000자 사이여야 합니다.')
+            return redirect(url_for('edit_product', product_id=product_id))
+        
+        if not validate_price(price):
+            flash('가격은 숫자만 입력 가능합니다.')
+            return redirect(url_for('edit_product', product_id=product_id))
+        
+        # 상품 정보 업데이트
+        cursor.execute(
+            "UPDATE product SET title = ?, description = ?, price = ? WHERE id = ?",
+            (title, description, price, product_id)
+        )
+        db.commit()
+        
+        # 감사 로그 기록
+        log_action(session['user_id'], "PRODUCT_UPDATE", f"Updated product: {title}")
+        
+        flash('상품 정보가 업데이트되었습니다.')
+        return redirect(url_for('my_products'))
+    
+    return render_template('edit_product.html', product=product)
+
+# 상품 삭제
+@app.route('/product/<product_id>/delete', methods=['POST'])
+@login_required
+def delete_product(product_id):
+    # CSRF 토큰 검증
+    if not validate_csrf_token():
+        flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
+        return redirect(url_for('my_products'))
+    
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 상품 조회
+    cursor.execute("SELECT * FROM product WHERE id = ?", (product_id,))
+    product = cursor.fetchone()
+    
+    if not product:
+        flash('상품을 찾을 수 없습니다.')
+        return redirect(url_for('my_products'))
+    
+    # 본인 상품인지 확인
+    if product['seller_id'] != session['user_id']:
+        flash('자신의 상품만 삭제할 수 있습니다.')
+        return redirect(url_for('dashboard'))
+    
+    # 상품 삭제
+    cursor.execute("DELETE FROM product WHERE id = ?", (product_id,))
+    db.commit()
+    
+    # 감사 로그 기록
+    log_action(session['user_id'], "PRODUCT_DELETE", f"Deleted product: {product['title']}")
+    
+    flash('상품이 삭제되었습니다.')
+    return redirect(url_for('my_products'))
+
+# 관리자: 상품 완전 삭제
+@app.route('/admin/products/<product_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_product(product_id):
+    # CSRF 토큰 검증
+    if not validate_csrf_token():
+        flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
+        return redirect(url_for('admin_products'))
+    
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 상품 정보 조회
+    cursor.execute("SELECT * FROM product WHERE id = ?", (product_id,))
+    product = cursor.fetchone()
+    
+    if not product:
+        flash('존재하지 않는 상품입니다.')
+        return redirect(url_for('admin_products'))
+    
+    # 데이터베이스에서 상품 삭제
+    cursor.execute("DELETE FROM product WHERE id = ?", (product_id,))
+    
+    # 관련된 신고 내역도 삭제
+    cursor.execute("DELETE FROM report WHERE target_id = ? AND target_type = 'product'", (product_id,))
+    
+    db.commit()
+    
+    # 감사 로그 기록
+    log_action(session['user_id'], "ADMIN_PRODUCT_DELETE", f"Admin deleted product: {product_id}")
+    
+    flash('상품이 데이터베이스에서 완전히 삭제되었습니다.')
+    return redirect(url_for('admin_products'))
+
+# 금지어 목록 (실제로는 더 많은 단어가 필요)
+BANNED_WORDS = [
+    '욕설', '비속어', '스팸', '광고', '사기', '불법', '도박', '성인',
+    # 실제 욕설 등을 여기에 추가
+]
+
+# 텍스트에서 금지어 확인
+def check_banned_content(text):
+    if text is None:
+        return False, []
+    
+    found_words = []
+    for word in BANNED_WORDS:
+        if word in text.lower():
+            found_words.append(word)
+    
+    return len(found_words) > 0, found_words
+
+# 기존 sanitize_input 함수 수정
+def sanitize_input(text, check_banned=True):
+    if text is None:
+        return None
+    
+    # HTML 태그 제거 및 이스케이프 처리
+    cleaned_text = bleach.clean(text, tags=[], strip=True)
+    
+    # 금지어 체크
+    if check_banned:
+        is_banned, banned_words = check_banned_content(cleaned_text)
+        if is_banned:
+            raise ValueError(f"금지어가 포함되어 있습니다: {', '.join(banned_words)}")
+    
+    return cleaned_text
 
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성

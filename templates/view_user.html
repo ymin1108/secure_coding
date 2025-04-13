@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}{{ user.username }}의 프로필{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>{{ user.username }}의 프로필</h2>
+    <p><strong>가입일:</strong> {{ user.created_at }}</p>
+    
+    {% if user.bio %}
+        <div class="card mb-4">
+            <div class="card-header">소개</div>
+            <div class="card-body">
+                <p>{{ user.bio }}</p>
+            </div>
+        </div>
+    {% endif %}
+    
+    {% if not is_owner and session.user_id %}
+        <a href="{{ url_for('chat_room', user_id=user.id) }}" class="btn btn-primary mb-4">
+            메시지 보내기
+        </a>
+    {% endif %}
+    
+    <h3>{{ user.username }}의 상품</h3>
+    
+    {% if products %}
+        <div class="row">
+            {% for product in products %}
+                <div class="col-md-4 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ product.title }}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">가격: {{ product.price }}원</h6>
+                            <p class="card-text">{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
+                            <a href="{{ url_for('view_product', product_id=product.id) }}" class="btn btn-sm btn-outline-primary">상세 보기</a>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>등록된 상품이 없습니다.</p>
+    {% endif %}
+</div>
+{% endblock %}

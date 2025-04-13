@@ -1,19 +1,18 @@
 {% extends "base.html" %}
-{% block title %}관리자: 상품 관리{% endblock %}
+{% block title %}내 상품 관리{% endblock %}
 {% block content %}
 <div class="container mt-5">
-    <h2>상품 관리</h2>
+    <h2>내 상품 관리</h2>
+    
+    <a href="{{ url_for('new_product') }}" class="btn btn-primary mb-4">새 상품 등록</a>
     
     {% if products %}
         <table class="table table-striped">
             <thead>
                 <tr>
-                    <th>ID</th>
                     <th>제목</th>
-                    <th>판매자</th>
                     <th>가격</th>
                     <th>상태</th>
-                    <th>신고 횟수</th>
                     <th>등록일</th>
                     <th>작업</th>
                 </tr>
@@ -21,9 +20,7 @@
             <tbody>
                 {% for product in products %}
                     <tr>
-                        <td>{{ product.id[:8] }}...</td>
-                        <td>{{ product.title }}</td>
-                        <td>{{ product.seller_name }}</td>
+                        <td><a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a></td>
                         <td>{{ product.price }}</td>
                         <td>
                             {% if product.status == 'active' %}
@@ -34,21 +31,10 @@
                                 <span class="badge badge-danger">차단됨</span>
                             {% endif %}
                         </td>
-                        <td>{{ product.report_count }}</td>
                         <td>{{ product.created_at }}</td>
                         <td>
-                            <form method="POST" action="{{ url_for('change_product_status', product_id=product.id) }}" class="d-inline">
-                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                <select name="status" class="form-control form-control-sm d-inline-block" style="width: auto;">
-                                    <option value="active" {% if product.status == 'active' %}selected{% endif %}>정상</option>
-                                    <option value="warning" {% if product.status == 'warning' %}selected{% endif %}>주의</option>
-                                    <option value="blocked" {% if product.status == 'blocked' %}selected{% endif %}>차단</option>
-                                </select>
-                                <button type="submit" class="btn btn-sm btn-primary">변경</button>
-                            </form>
-                            
-                            <!-- 상품 삭제 버튼 추가 -->
-                            <form method="POST" action="{{ url_for('admin_delete_product', product_id=product.id) }}" class="d-inline" onsubmit="return confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.');">
+                            <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn btn-sm btn-primary">수정</a>
+                            <form method="POST" action="{{ url_for('delete_product', product_id=product.id) }}" class="d-inline" onsubmit="return confirm('정말 삭제하시겠습니까?');">
                                 <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-danger">삭제</button>
                             </form>
@@ -59,7 +45,7 @@
         </table>
     {% else %}
         <div class="alert alert-info">
-            등록된 상품이 없습니다.
+            등록한 상품이 없습니다.
         </div>
     {% endif %}
     

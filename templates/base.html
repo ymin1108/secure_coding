@@ -89,8 +89,17 @@
   <nav>
     {% if session.get('user_id') %}
       <a href="{{ url_for('dashboard') }}">대시보드</a>
+      <a href="{{ url_for('my_products') }}">내 상품</a>
       <a href="{{ url_for('profile') }}">프로필</a>
+      <a href="{{ url_for('message_list') }}">메시지</a>
       <a href="{{ url_for('report') }}">신고하기</a>
+      
+      {% if session.get('is_admin') %}
+        <a href="{{ url_for('admin_reports') }}" class="text-danger">관리자: 신고</a>
+        <a href="{{ url_for('admin_users') }}" class="text-danger">관리자: 사용자</a>
+        <a href="{{ url_for('admin_products') }}" class="text-danger">관리자: 상품</a>
+      {% endif %}
+      
       <a href="{{ url_for('logout') }}">로그아웃</a>
     {% else %}
       <a href="{{ url_for('login') }}">로그인</a>
