@@ -3,22 +3,29 @@
 {% block content %}
 <h2>대시보드</h2>
 <h3>등록된 상품</h3>
-<ul>
+<div class="product-list">
   {% for product in products %}
-    <li>
-      <a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a>
-      - 가격: {{ product.price }}
-    </li>
+    <div class="product-item">
+      <div class="product-info">
+        <a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a>
+        - 가격: {{ product.price }}
+      </div>
+      <div class="product-actions">
+        {% if product.seller_id != session.user_id %}
+          <a href="{{ url_for('report', target_name=product.title, target_type='product') }}" class="btn btn-sm btn-outline-warning">신고</a>
+        {% endif %}
+      </div>
+    </div>
   {% endfor %}
-</ul>
-<p><a href="{{ url_for('new_product') }}">새 상품 등록</a></p>
+</div>
+<p><a href="{{ url_for('new_product') }}" class="btn btn-primary">새 상품 등록</a></p>
 
 <h3>실시간 채팅</h3>
 <div id="chat">
   <div id="messages" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;"></div>
   <div style="display: flex;">
     <input id="chat_input" type="text" placeholder="메시지를 입력하세요" style="flex-grow: 1; margin-right: 10px;">
-    <button onclick="sendMessage()" style="width: 80px;">전송</button>
+    <button onclick="sendMessage()" id="send_button" style="width: 80px;">전송</button>
   </div>
 </div>
 
@@ -83,4 +90,26 @@
     }
   });
 </script>
+
+<style>
+  .product-list {
+    margin-bottom: 20px;
+  }
+  
+  .product-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .product-info {
+    flex-grow: 1;
+  }
+  
+  .product-actions {
+    margin-left: 10px;
+  }
+</style>
 {% endblock %}

@@ -15,9 +15,14 @@
     {% endif %}
     
     {% if not is_owner and session.user_id %}
-        <a href="{{ url_for('chat_room', user_id=user.id) }}" class="btn btn-primary mb-4">
-            메시지 보내기
-        </a>
+        <div class="action-buttons mb-4">
+            <a href="{{ url_for('chat_room', user_id=user.id) }}" class="btn btn-primary">
+                메시지 보내기
+            </a>
+            <a href="{{ url_for('report', target_name=user.username, target_type='user') }}" class="btn btn-warning">
+                이 사용자 신고하기
+            </a>
+        </div>
     {% endif %}
     
     <h3>{{ user.username }}의 상품</h3>
@@ -31,7 +36,12 @@
                             <h5 class="card-title">{{ product.title }}</h5>
                             <h6 class="card-subtitle mb-2 text-muted">가격: {{ product.price }}원</h6>
                             <p class="card-text">{{ product.description[:100] }}{% if product.description|length > 100 %}...{% endif %}</p>
-                            <a href="{{ url_for('view_product', product_id=product.id) }}" class="btn btn-sm btn-outline-primary">상세 보기</a>
+                            <div class="mt-2">
+                                <a href="{{ url_for('view_product', product_id=product.id) }}" class="btn btn-sm btn-outline-primary">상세 보기</a>
+                                {% if not is_owner and session.user_id %}
+                                    <a href="{{ url_for('report', target_name=product.title, target_type='product') }}" class="btn btn-sm btn-outline-warning">신고</a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>

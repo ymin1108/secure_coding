@@ -575,13 +575,13 @@ def report():
             flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
             return redirect(url_for('report'))
         
-        target_id = sanitize_input(request.form['target_id'])
+        target_name = sanitize_input(request.form['target_name'])
         target_type = sanitize_input(request.form['target_type'])
         reason = sanitize_input(request.form['reason'])
         
         # 입력값 검증
-        if not target_id or len(target_id) < 5:
-            flash('유효한 대상 ID를 입력해주세요.')
+        if not target_name or len(target_name) < 2:
+            flash('유효한 대상 이름을 입력해주세요.')
             return redirect(url_for('report'))
         
         if not target_type or target_type not in ['user', 'product']:
@@ -595,14 +595,22 @@ def report():
         db = get_db()
         cursor = db.cursor()
         
-        # 대상 존재 여부 확인
+        # 대상 존재 여부 확인 및 ID 조회
+        target_id = None
         if target_type == 'user':
-            cursor.execute("SELECT * FROM user WHERE id = ?", (target_id,))
+            cursor.execute("SELECT id FROM user WHERE username = ?", (target_name,))
+            user = cursor.fetchone()
+            if user:
+                target_id = user['id']
         else:  # product
-            cursor.execute("SELECT * FROM product WHERE id = ?", (target_id,))
+            cursor.execute("SELECT id, seller_id FROM product WHERE title = ?", (target_name,))
+            product = cursor.fetchone()
+            if product:
+                target_id = product['id']
+                # 자신의 상품 신고 방지를 위해 seller_id도 저장
+                seller_id = product['seller_id']
         
-        target = cursor.fetchone()
-        if not target:
+        if not target_id:
             flash('존재하지 않는 대상입니다.')
             return redirect(url_for('report'))
         
@@ -612,7 +620,7 @@ def report():
             return redirect(url_for('report'))
         
         # 자신의 상품 신고 방지
-        if target_type == 'product' and target['seller_id'] == session['user_id']:
+        if target_type == 'product' and seller_id == session['user_id']:
             flash('자신의 상품을 신고할 수 없습니다.')
             return redirect(url_for('report'))
         
@@ -662,16 +670,16 @@ def report():
         db.commit()
         
         # 감사 로그 기록
-        log_action(session['user_id'], "REPORT", f"Reported {target_type}: {target_id}")
+        log_action(session['user_id'], "REPORT", f"Reported {target_type}: {target_name} (ID: {target_id})")
         
         flash('신고가 접수되었습니다.')
         return redirect(url_for('dashboard'))
     
     # GET 요청 처리
-    target_id = request.args.get('target_id', '')
+    target_name = request.args.get('target_name', '')
     target_type = request.args.get('target_type', 'product')
     
-    return render_template('report.html', target_id=target_id, target_type=target_type)
+    return render_template('report.html', target_name=target_name, target_type=target_type)
 
 # 1대1 채팅 목록
 @app.route('/messages')
