@@ -1082,14 +1082,14 @@ def handle_private_message(data):
     }, room=receiver_id)
 
 
-    # 사용자 프로필 조회
-@app.route('/user/<user_id>')
-def view_user(user_id):
+# 사용자 프로필 조회
+@app.route('/user/<username>')
+def view_user(username):
     db = get_db()
     cursor = db.cursor()
     
     # 사용자 정보 조회
-    cursor.execute("SELECT id, username, bio, status, created_at FROM user WHERE id = ?", (user_id,))
+    cursor.execute("SELECT id, username, bio, status, created_at FROM user WHERE username = ?", (username,))
     user = cursor.fetchone()
     
     if not user:
@@ -1106,12 +1106,12 @@ def view_user(user_id):
         SELECT * FROM product 
         WHERE seller_id = ? AND status != 'blocked'
         ORDER BY created_at DESC
-    """, (user_id,))
+    """, (user['id'],))
     
     products = cursor.fetchall()
     
     # 현재 로그인한 사용자인지 확인
-    is_owner = 'user_id' in session and session['user_id'] == user_id
+    is_owner = 'user_id' in session and session['user_id'] == user['id']
     
     return render_template('view_user.html', user=user, products=products, is_owner=is_owner)
 
@@ -1293,6 +1293,15 @@ def sanitize_input(text, check_banned=True):
             raise ValueError(f"금지어가 포함되어 있습니다: {', '.join(banned_words)}")
     
     return cleaned_text
+
+# 사용자 검색
+@app.route('/search_user', methods=['GET', 'POST'])
+def search_user():
+    if request.method == 'POST':
+        username = request.form['username']
+        return redirect(url_for('view_user', username=username))
+    
+    return render_template('search_user.html')
 
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성

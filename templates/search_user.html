@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}사용자 검색{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>사용자 검색</h2>
+    
+    <form method="POST" action="{{ url_for('search_user') }}">
+        <div class="form-group">
+            <label for="username">사용자명</label>
+            <input type="text" class="form-control" id="username" name="username" required>
+        </div>
+        <button type="submit" class="btn btn-primary">검색</button>
+    </form>
+</div>
+{% endblock %}
