@@ -117,18 +117,19 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
-# 테이블 생성 (최초 실행 시에만)
+# 테이블 생성 (최초 실행 시에만) - 'balance' 필드 추가
 def init_db():
     with app.app_context():
         db = get_db()
         cursor = db.cursor()
-        # 사용자 테이블 생성
+        # 사용자 테이블 생성 (balance 필드 추가)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user (
                 id TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 bio TEXT,
+                balance INTEGER DEFAULT 10000,
                 login_attempts INTEGER DEFAULT 0,
                 locked_until TIMESTAMP,
                 is_admin BOOLEAN DEFAULT 0,
@@ -202,6 +203,22 @@ def init_db():
                 UNIQUE(room_id, user_id)
             )
         """)
+        # 송금 내역 테이블 생성 (신규)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS money_transfer (
+                id TEXT PRIMARY KEY,
+                sender_id TEXT NOT NULL,
+                receiver_id TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                description TEXT,
+                status TEXT DEFAULT 'completed',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.commit()
+        
+        # 기존 사용자에게 기본 잔액 부여 (잔액이 NULL인 경우)
+        cursor.execute("UPDATE user SET balance = 10000 WHERE balance IS NULL")
         db.commit()
 
 # 감사 로그 기록 함수
@@ -416,6 +433,7 @@ def profile():
         flash('프로필이 업데이트되었습니다.')
         return redirect(url_for('profile'))
     
+    # 사용자 정보와 잔액을 함께 조회
     cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
     current_user = cursor.fetchone()
     
@@ -1408,6 +1426,146 @@ def search_product():
                               count=len(products))
     
     return render_template('search_product.html')
+
+# 잔액 확인 페이지
+@app.route('/balance')
+@login_required
+def balance():
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 현재 사용자 잔액 조회
+    cursor.execute("SELECT balance FROM user WHERE id = ?", (session['user_id'],))
+    current_balance = cursor.fetchone()['balance']
+    
+    # 최근 거래 내역 조회 (보낸 내역과 받은 내역 모두)
+    cursor.execute("""
+        SELECT t.*, 
+               s.username as sender_name, 
+               r.username as receiver_name
+        FROM money_transfer t
+        JOIN user s ON t.sender_id = s.id
+        JOIN user r ON t.receiver_id = r.id
+        WHERE t.sender_id = ? OR t.receiver_id = ?
+        ORDER BY t.created_at DESC
+        LIMIT 10
+    """, (session['user_id'], session['user_id']))
+    
+    transactions = cursor.fetchall()
+    
+    return render_template('balance.html', 
+                           balance=current_balance, 
+                           transactions=transactions,
+                           user_id=session['user_id'])
+
+# 송금 페이지
+@app.route('/transfer', methods=['GET', 'POST'])
+@login_required
+def transfer():
+    # 잔액 조회를 먼저 수행 (모든 경로에서 필요함)
+    db = get_db()
+    cursor = db.cursor()
+    
+    # 현재 사용자 잔액 조회
+    cursor.execute("SELECT balance FROM user WHERE id = ?", (session['user_id'],))
+    user_result = cursor.fetchone()
+    
+    if not user_result:
+        flash('사용자 정보를 찾을 수 없습니다.')
+        return redirect(url_for('dashboard'))
+    
+    current_balance = user_result['balance']
+    
+    if request.method == 'POST':
+        # CSRF 토큰 검증
+        if not validate_csrf_token():
+            flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
+            return redirect(url_for('transfer'))
+        
+        # 입력값 가져오기
+        username = sanitize_input(request.form.get('username', ''))
+        amount_str = request.form.get('amount', '0')
+        description = sanitize_input(request.form.get('description', ''))
+        
+        # 기본 검증
+        try:
+            amount = int(amount_str)
+        except ValueError:
+            flash('금액은 숫자여야 합니다.')
+            return redirect(url_for('transfer'))
+        
+        if amount <= 0:
+            flash('송금 금액은 0보다 커야 합니다.')
+            return redirect(url_for('transfer'))
+        
+        if len(description) > 200:
+            flash('설명은 200자 이내여야 합니다.')
+            return redirect(url_for('transfer'))
+        
+        # 사용자 존재 여부 확인
+        cursor.execute("SELECT id, username FROM user WHERE username = ?", (username,))
+        receiver = cursor.fetchone()
+        
+        if not receiver:
+            flash('존재하지 않는 사용자입니다.')
+            return redirect(url_for('transfer'))
+        
+        # 자기 자신에게 송금 방지
+        if receiver['id'] == session['user_id']:
+            flash('자기 자신에게 송금할 수 없습니다.')
+            return redirect(url_for('transfer'))
+        
+        # 잔액 확인
+        if current_balance < amount:
+            flash('잔액이 부족합니다.')
+            return redirect(url_for('transfer'))
+        
+        try:
+            # 트랜잭션 시작
+            db.execute("BEGIN TRANSACTION")
+            
+            # 송금자 잔액 감소
+            cursor.execute("UPDATE user SET balance = balance - ? WHERE id = ?", (amount, session['user_id']))
+            
+            # 수신자 잔액 증가
+            cursor.execute("UPDATE user SET balance = balance + ? WHERE id = ?", (amount, receiver['id']))
+            
+            # 거래 내역 기록
+            transaction_id = str(uuid.uuid4())
+            cursor.execute(
+                "INSERT INTO money_transfer (id, sender_id, receiver_id, amount, description) VALUES (?, ?, ?, ?, ?)",
+                (transaction_id, session['user_id'], receiver['id'], amount, description)
+            )
+            
+            # 트랜잭션 커밋
+            db.commit()
+            
+            # 감사 로그 기록
+            log_action(session['user_id'], "TRANSFER", f"Transferred {amount} to {username}")
+            
+            flash(f'{username}님에게 {amount}원을 성공적으로 송금했습니다.')
+            return redirect(url_for('balance'))
+            
+        except Exception as e:
+            # 오류 발생 시 롤백
+            db.rollback()
+            app.logger.error(f"Transfer error: {str(e)}")
+            flash(f'송금 중 오류가 발생했습니다. 다시 시도해주세요.')
+            return redirect(url_for('transfer'))
+    
+    # GET 요청 처리 (송금 폼 표시)
+    
+    # 수신자 자동 완성을 위한 사용자 목록 (자기 자신 제외)
+    cursor.execute("SELECT username FROM user WHERE id != ? ORDER BY username", (session['user_id'],))
+    users = [user['username'] for user in cursor.fetchall()]
+    
+    # 요청 파라미터에서 수신자 이름을 가져옴 (다른 페이지에서 링크로 접근 시)
+    receiver = request.args.get('to', '')
+    
+    return render_template('transfer.html', 
+                          balance=current_balance, 
+                          users=users,
+                          receiver=receiver)
 
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성

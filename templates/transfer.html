@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}송금하기{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>송금하기</h2>
+    
+    <div class="alert alert-info mb-4">
+        현재 잔액: <strong>{{ balance }}원</strong>
+    </div>
+    
+    <div class="card">
+        <div class="card-body">
+            <form method="post" action="{{ url_for('transfer') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="form-group">
+                    <label for="username">받는 사람 (사용자명)</label>
+                    <input type="text" class="form-control" id="username" name="username" value="{{ receiver }}" required list="user-list">
+                    <datalist id="user-list">
+                        {% for user in users %}
+                            <option value="{{ user }}">
+                        {% endfor %}
+                    </datalist>
+                    <small class="form-text text-muted">존재하는 사용자 이름을 입력하세요.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="amount">금액</label>
+                    <div style="display: flex;">
+                        <input type="number" class="form-control" id="amount" name="amount" min="1" style="flex-grow: 1;" required>
+                        <span style="padding: 10px; background-color: #f0f0f0; border: 1px solid #ddd; border-left: none;">원</span>
+                    </div>
+                    <small class="form-text text-muted">최대 {{ balance }}원까지 송금 가능합니다.</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description">내용 (선택사항)</label>
+                    <textarea class="form-control" id="description" name="description" rows="3" maxlength="200"></textarea>
+                    <small class="form-text text-muted">최대 200자까지 입력할 수 있습니다.</small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">송금하기</button>
+                <a href="{{ url_for('balance') }}" class="btn btn-secondary">취소</a>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 금액 입력 필드 변경 시 잔액 초과 검사
+    document.getElementById('amount').addEventListener('input', function(e) {
+        // 안전하게 문자열을 숫자로 변환
+        const maxBalance = parseInt("{{ balance }}") || 0;
+        const enteredAmount = parseInt(e.target.value) || 0;
+        
+        if (enteredAmount > maxBalance) {
+            e.target.setCustomValidity('잔액을 초과할 수 없습니다.');
+        } else if (enteredAmount <= 0) {
+            e.target.setCustomValidity('0보다 큰 금액을 입력해야 합니다.');
+        } else {
+            e.target.setCustomValidity('');
+        }
+    });
+</script>
+{% endblock %}

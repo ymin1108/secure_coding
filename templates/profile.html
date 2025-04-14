@@ -2,13 +2,59 @@
 {% block title %}프로필{% endblock %}
 {% block content %}
 <h2>프로필 관리</h2>
-<p>사용자명: {{ user.username }}</p>
+
+<div class="profile-info mb-4">
+  <div class="card">
+    <div class="card-body">
+      <h3>내 정보</h3>
+      <p><strong>사용자명:</strong> {{ user.username }}</p>
+      <p><strong>현재 잔액:</strong> {{ user.balance }}원</p>
+      <div class="action-buttons">
+        <a href="{{ url_for('balance') }}" class="btn btn-outline-primary">잔액 관리</a>
+        <a href="{{ url_for('transfer') }}" class="btn btn-outline-success">송금하기</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>소개글 수정</h3>
 <form method="post">
   <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-  소개글: <br>
-  <textarea name="bio" rows="4" cols="50">{{ user.bio or '' }}</textarea><br>
-  <button type="submit">프로필 업데이트</button>
+  <div class="form-group">
+    <textarea name="bio" rows="4" class="form-control" placeholder="자기소개를 입력하세요">{{ user.bio or '' }}</textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">프로필 업데이트</button>
 </form>
+
 <hr>
-<a href="{{ url_for('change_password') }}" class="btn btn-warning">비밀번호 변경</a>
+<div class="mt-4">
+  <a href="{{ url_for('change_password') }}" class="btn btn-warning">비밀번호 변경</a>
+</div>
+
+<style>
+  .action-buttons {
+    margin-top: 20px;
+  }
+  
+  .action-buttons .btn {
+    margin-right: 10px;
+  }
+  
+  .card {
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+</style>
 {% endblock %}

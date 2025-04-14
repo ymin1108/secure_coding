@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}내 잔액{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>내 잔액</h2>
+        </div>
+        <div class="col-md-4 text-right">
+            <a href="{{ url_for('transfer') }}" class="btn btn-primary">송금하기</a>
+        </div>
+    </div>
+    
+    <div class="balance-card mb-5">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">현재 잔액</h5>
+                <h2 class="card-text text-primary">{{ balance }}원</h2>
+            </div>
+        </div>
+    </div>
+    
+    <h3>최근 거래내역</h3>
+    
+    {% if transactions %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>일시</th>
+                        <th>유형</th>
+                        <th>상대방</th>
+                        <th>금액</th>
+                        <th>내용</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tx in transactions %}
+                        <tr>
+                            <td>{{ tx.created_at }}</td>
+                            <td>
+                                {% if tx.sender_id == user_id %}
+                                    <span class="badge badge-danger">출금</span>
+                                {% else %}
+                                    <span class="badge badge-success">입금</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if tx.sender_id == user_id %}
+                                    {{ tx.receiver_name }}
+                                {% else %}
+                                    {{ tx.sender_name }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if tx.sender_id == user_id %}
+                                    <span class="text-danger">-{{ tx.amount }}원</span>
+                                {% else %}
+                                    <span class="text-success">+{{ tx.amount }}원</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ tx.description or '(내용 없음)' }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            거래 내역이 없습니다.
+        </div>
+    {% endif %}
+</div>
+
+<style>
+    .balance-card {
+        transition: all 0.3s ease;
+    }
+    
+    .balance-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .text-right {
+        text-align: right;
+    }
+</style>
+{% endblock %}

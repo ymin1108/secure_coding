@@ -19,6 +19,9 @@
             <a href="{{ url_for('chat_room', user_id=user.id) }}" class="btn btn-primary">
                 메시지 보내기
             </a>
+            <a href="{{ url_for('transfer', to=user.username) }}" class="btn btn-success">
+                송금하기
+            </a>
             <a href="{{ url_for('report', target_name=user.username, target_type='user') }}" class="btn btn-warning">
                 이 사용자 신고하기
             </a>
@@ -51,4 +54,10 @@
         <p>등록된 상품이 없습니다.</p>
     {% endif %}
 </div>
+
+<style>
+    .action-buttons .btn {
+        margin-right: 5px;
+    }
+</style>
 {% endblock %}
