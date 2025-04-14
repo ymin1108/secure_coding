@@ -1383,6 +1383,32 @@ def search_user():
     
     return render_template('search_user.html')
 
+# 상품 검색
+@app.route('/search_product', methods=['GET', 'POST'])
+def search_product():
+    search_term = request.args.get('query', '')
+    
+    if search_term:
+        db = get_db()
+        cursor = db.cursor()
+        
+        # 제목이나 설명에 검색어가 포함된 상품 검색 (차단된 상품 제외)
+        cursor.execute("""
+            SELECT p.*, u.username as seller_name
+            FROM product p
+            JOIN user u ON p.seller_id = u.id
+            WHERE (p.title LIKE ? OR p.description LIKE ?) AND p.status != 'blocked'
+            ORDER BY p.created_at DESC
+        """, (f'%{search_term}%', f'%{search_term}%'))
+        
+        products = cursor.fetchall()
+        return render_template('search_product_results.html', 
+                              products=products, 
+                              search_term=search_term,
+                              count=len(products))
+    
+    return render_template('search_product.html')
+
 if __name__ == '__main__':
     init_db()  # 앱 컨텍스트 내에서 테이블 생성
     socketio.run(app, debug=True, host='0.0.0.0')

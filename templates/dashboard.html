@@ -2,6 +2,15 @@
 {% block title %}대시보드{% endblock %}
 {% block content %}
 <h2>대시보드</h2>
+
+<!-- 상품 검색 바 추가 -->
+<div class="search-bar mb-4">
+  <form method="GET" action="{{ url_for('search_product') }}" class="d-flex">
+    <input type="text" name="query" class="form-control" placeholder="상품 검색..." style="flex: 1; margin-right: 10px;">
+    <button type="submit" class="btn btn-primary" style="width: auto;">검색</button>
+  </form>
+</div>
+
 <h3>등록된 상품</h3>
 <div class="product-list">
   {% for product in products %}
@@ -110,6 +119,14 @@
   
   .product-actions {
     margin-left: 10px;
+  }
+  
+  .search-bar {
+    margin-top: 20px;
+  }
+  
+  .d-flex {
+    display: flex;
   }
 </style>
 {% endblock %}

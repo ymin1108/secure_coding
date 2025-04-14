@@ -90,6 +90,7 @@
     {% if session.get('user_id') %}
       <a href="{{ url_for('dashboard') }}">대시보드</a>
       <a href="{{ url_for('my_products') }}">내 상품</a>
+      <a href="{{ url_for('search_product') }}">상품 검색</a>
       <a href="{{ url_for('profile') }}">프로필</a>
       <a href="{{ url_for('search_user') }}">사용자 검색</a>
       <a href="{{ url_for('message_list') }}">메시지</a>

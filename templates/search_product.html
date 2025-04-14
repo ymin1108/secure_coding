@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}상품 검색{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2>상품 검색</h2>
+    
+    <form method="GET" action="{{ url_for('search_product') }}">
+        <div class="form-group">
+            <label for="query">검색어</label>
+            <input type="text" class="form-control" id="query" name="query" placeholder="검색할 상품명 또는 설명을 입력하세요" required>
+            <small class="form-text text-muted">상품명이나 설명에 포함된 텍스트를 검색합니다.</small>
+        </div>
+        <button type="submit" class="btn btn-primary">검색</button>
+    </form>
+    
+    <div class="mt-4">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+    </div>
+</div>
+{% endblock %}
