@@ -4,51 +4,131 @@
 <div class="container mt-5">
     <h2>내 상품 관리</h2>
     
-    <a href="{{ url_for('new_product') }}" class="btn btn-primary mb-4">새 상품 등록</a>
+    <div class="mb-4">
+        <a href="{{ url_for('new_product') }}" class="btn btn-primary">새 상품 등록</a>
+    </div>
     
     {% if products %}
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>제목</th>
-                    <th>가격</th>
-                    <th>상태</th>
-                    <th>등록일</th>
-                    <th>작업</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for product in products %}
-                    <tr>
-                        <td><a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a></td>
-                        <td>{{ product.price }}</td>
-                        <td>
-                            {% if product.status == 'active' %}
-                                <span class="badge badge-success">정상</span>
-                            {% elif product.status == 'warning' %}
-                                <span class="badge badge-warning">주의</span>
-                            {% elif product.status == 'blocked' %}
-                                <span class="badge badge-danger">차단됨</span>
+        <div class="row">
+            {% for product in products %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 product-card">
+                        <div class="card-img-top text-center pt-3">
+                            {% if product.image_path %}
+                                <img src="{{ url_for('uploaded_file', filename=product.image_path.split('/')[-1]) }}" 
+                                     alt="{{ product.title }}" class="product-thumbnail">
+                            {% else %}
+                                <div class="no-image-placeholder">
+                                    <i class="no-image-icon">🖼️</i>
+                                </div>
                             {% endif %}
-                        </td>
-                        <td>{{ product.created_at }}</td>
-                        <td>
-                            <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn btn-sm btn-primary">수정</a>
-                            <form method="POST" action="{{ url_for('delete_product', product_id=product.id) }}" class="d-inline" onsubmit="return confirm('정말 삭제하시겠습니까?');">
-                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                                <button type="submit" class="btn btn-sm btn-danger">삭제</button>
-                            </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">{{ product.title }}</h5>
+                            <p class="card-text">가격: {{ product.price }}원</p>
+                            <p class="card-text">
+                                <span class="badge {% if product.status == 'active' %}badge-success{% elif product.status == 'warning' %}badge-warning{% elif product.status == 'blocked' %}badge-danger{% endif %}">
+                                    {% if product.status == 'active' %}정상{% elif product.status == 'warning' %}주의{% elif product.status == 'blocked' %}차단됨{% endif %}
+                                </span>
+                            </p>
+                            <p class="card-text"><small class="text-muted">등록일: {{ product.created_at }}</small></p>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ url_for('view_product', product_id=product.id) }}" class="btn btn-sm btn-outline-primary">상세보기</a>
+                                <div>
+                                    <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn btn-sm btn-primary">수정</a>
+                                    <form method="POST" action="{{ url_for('delete_product', product_id=product.id) }}" class="d-inline" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-sm btn-danger">삭제</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
     {% else %}
         <div class="alert alert-info">
             등록한 상품이 없습니다.
         </div>
     {% endif %}
     
-    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+    <div class="mt-3">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+    </div>
 </div>
+
+<style>
+    .product-card {
+        transition: all 0.3s ease;
+    }
+    
+    .product-card:hover {
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        transform: translateY(-5px);
+    }
+    
+    .product-thumbnail {
+        max-height: 150px;
+        width: auto;
+        max-width: 100%;
+        object-fit: contain;
+    }
+    
+    .no-image-placeholder {
+        height: 150px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        margin: 0 10px;
+    }
+    
+    .no-image-icon {
+        font-size: 48px;
+        color: #adb5bd;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 0.25em 0.4em;
+        font-size: 75%;
+        font-weight: 700;
+        line-height: 1;
+        text-align: center;
+        white-space: nowrap;
+        vertical-align: baseline;
+        border-radius: 0.25rem;
+    }
+    
+    .badge-success {
+        color: #fff;
+        background-color: #28a745;
+    }
+    
+    .badge-warning {
+        color: #212529;
+        background-color: #ffc107;
+    }
+    
+    .badge-danger {
+        color: #fff;
+        background-color: #dc3545;
+    }
+    
+    .d-flex {
+        display: flex;
+    }
+    
+    .justify-content-between {
+        justify-content: space-between;
+    }
+    
+    .d-inline {
+        display: inline;
+    }
+</style>
 {% endblock %}

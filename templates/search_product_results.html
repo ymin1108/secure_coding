@@ -20,6 +20,16 @@
             {% for product in products %}
                 <div class="col-md-4 mb-4">
                     <div class="card h-100">
+                        <div class="card-img-top text-center pt-3">
+                            {% if product.image_path %}
+                                <img src="{{ url_for('uploaded_file', filename=product.image_path.split('/')[-1]) }}" 
+                                    alt="{{ product.title }}" class="product-thumbnail">
+                            {% else %}
+                                <div class="no-image-placeholder">
+                                    <i class="no-image-icon">🖼️</i>
+                                </div>
+                            {% endif %}
+                        </div>
                         <div class="card-body">
                             <h5 class="card-title">{{ product.title }}</h5>
                             <h6 class="card-subtitle mb-2 text-muted">가격: {{ product.price }}원</h6>
@@ -66,6 +76,28 @@
     .form-inline .form-control {
         flex: 1;
         margin-right: 10px;
+    }
+    
+    .product-thumbnail {
+        max-height: 150px;
+        width: auto;
+        max-width: 100%;
+        object-fit: contain;
+    }
+    
+    .no-image-placeholder {
+        height: 150px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        margin: 0 10px;
+    }
+    
+    .no-image-icon {
+        font-size: 48px;
+        color: #adb5bd;
     }
 </style>
 {% endblock %}

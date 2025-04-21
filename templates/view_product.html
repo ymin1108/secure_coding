@@ -1,20 +1,105 @@
 {% extends "base.html" %}
 {% block title %}상품 상세보기{% endblock %}
 {% block content %}
-<h2>{{ product.title }}</h2>
-<p>{{ product.description }}</p>
-<p>가격: {{ product.price }}</p>
-<p>판매자: <a href="{{ url_for('view_user', username=seller.username) }}">{{ seller.username if seller else '알 수 없음' }}</a></p>
-
-{% if is_logged_in and not is_seller %}
-  <div class="action-buttons">
-    {% if chat_room_id %}
-      <a href="{{ url_for('chat_room', user_id=seller.id) }}" class="btn btn-primary">판매자와 채팅하기</a>
-    {% else %}
-      <a href="{{ url_for('chat_room', user_id=seller.id) }}" class="btn btn-primary">판매자에게 메시지 보내기</a>
-    {% endif %}
+<div class="container mt-5">
+  <div class="row">
+    <div class="col-md-8">
+      <h2>{{ product.title }}</h2>
+      
+      <div class="price-info my-3">
+        <h4 class="text-primary">{{ product.price }}원</h4>
+      </div>
+      
+      <div class="seller-info mb-3">
+        <p>
+          <strong>판매자:</strong> 
+          <a href="{{ url_for('view_user', username=seller.username) }}">{{ seller.username if seller else '알 수 없음' }}</a>
+        </p>
+      </div>
+      
+      <div class="product-description mb-4">
+        <h5>상품 설명</h5>
+        <div class="card">
+          <div class="card-body">
+            <p>{{ product.description }}</p>
+          </div>
+        </div>
+      </div>
+      
+      {% if is_logged_in and not is_seller %}
+        <div class="action-buttons mb-4">
+          {% if chat_room_id %}
+            <a href="{{ url_for('chat_room', user_id=seller.id) }}" class="btn btn-primary">판매자와 채팅하기</a>
+          {% else %}
+            <a href="{{ url_for('chat_room', user_id=seller.id) }}" class="btn btn-primary">판매자에게 메시지 보내기</a>
+          {% endif %}
+          
+          <a href="{{ url_for('report', target_name=product.title, target_type='product') }}" class="btn btn-warning">이 상품 신고하기</a>
+        </div>
+      {% endif %}
+      
+      {% if is_seller %}
+        <div class="seller-actions mb-4">
+          <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn btn-outline-primary">상품 수정</a>
+          <form method="POST" action="{{ url_for('delete_product', product_id=product.id) }}" class="d-inline" onsubmit="return confirm('정말 삭제하시겠습니까?');">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-outline-danger">상품 삭제</button>
+          </form>
+        </div>
+      {% endif %}
+      
+      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">대시보드로 돌아가기</a>
+    </div>
     
-    <a href="{{ url_for('report', target_name=product.title, target_type='product') }}" class="btn btn-warning">이 상품 신고하기</a>
+    <div class="col-md-4">
+      <div class="product-image-container">
+        {% if product.image_path %}
+          <div class="card mb-4">
+            <div class="card-body text-center">
+              <img src="{{ url_for('uploaded_file', filename=product.image_path.split('/')[-1]) }}" 
+                   alt="{{ product.title }}" 
+                   class="product-image img-fluid rounded">
+            </div>
+          </div>
+        {% else %}
+          <div class="card mb-4">
+            <div class="card-body text-center">
+              <div class="no-image-placeholder">
+                <i class="no-image-icon">🖼️</i>
+                <p class="text-muted">이미지가 없습니다</p>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
   </div>
-{% endif %}
+</div>
+
+<style>
+  .product-image {
+    max-height: 400px;
+    width: auto;
+    object-fit: contain;
+  }
+  
+  .no-image-placeholder {
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+  }
+  
+  .no-image-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+  }
+  
+  .action-buttons .btn, .seller-actions .btn {
+    margin-right: 10px;
+  }
+</style>
 {% endblock %}

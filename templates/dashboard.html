@@ -1,40 +1,92 @@
 {% extends "base.html" %}
 {% block title %}대시보드{% endblock %}
 {% block content %}
-<h2>대시보드</h2>
+<div class="container mt-5">
+  <h2>대시보드</h2>
 
-<!-- 상품 검색 바 추가 -->
-<div class="search-bar mb-4">
-  <form method="GET" action="{{ url_for('search_product') }}" class="d-flex">
-    <input type="text" name="query" class="form-control" placeholder="상품 검색..." style="flex: 1; margin-right: 10px;">
-    <button type="submit" class="btn btn-primary" style="width: auto;">검색</button>
-  </form>
+  <!-- 상품 검색 바 추가 -->
+  <div class="search-bar mb-4">
+    <form method="GET" action="{{ url_for('search_product') }}" class="d-flex">
+      <input type="text" name="query" class="form-control" placeholder="상품 검색..." style="flex: 1; margin-right: 10px;">
+      <button type="submit" class="btn btn-primary" style="width: auto;">검색</button>
+    </form>
+  </div>
+
+  <!-- 관리자 기능 섹션 추가 -->
+{% if session.get('is_admin') %}
+<div class="admin-panel mb-4">
+  <h3>관리자 기능</h3>
+  <div class="admin-links mb-3">
+    <a href="{{ url_for('admin_reports') }}" class="btn btn-danger mr-2">신고 관리</a>
+    <a href="{{ url_for('admin_users') }}" class="btn btn-danger mr-2">사용자 관리</a>
+    <a href="{{ url_for('admin_products') }}" class="btn btn-danger mr-2">상품 관리</a>
+  </div>
 </div>
+{% endif %}
 
-<h3>등록된 상품</h3>
-<div class="product-list">
-  {% for product in products %}
-    <div class="product-item">
-      <div class="product-info">
-        <a href="{{ url_for('view_product', product_id=product.id) }}">{{ product.title }}</a>
-        - 가격: {{ product.price }}
-      </div>
-      <div class="product-actions">
-        {% if product.seller_id != session.user_id %}
-          <a href="{{ url_for('report', target_name=product.title, target_type='product') }}" class="btn btn-sm btn-outline-warning">신고</a>
-        {% endif %}
+  <div class="mb-4">
+    <div class="d-flex justify-content-between align-items-center">
+      <h3>등록된 상품</h3>
+      <a href="{{ url_for('new_product') }}" class="btn btn-primary">새 상품 등록</a>
+    </div>
+  </div>
+
+  <div class="product-grid mb-5">
+    <div class="row">
+      {% for product in products %}
+        <div class="col-md-4 col-sm-6 mb-4">
+          <div class="card h-100 product-card">
+            <div class="card-img-top text-center pt-3">
+              {% if product.image_path %}
+                <a href="{{ url_for('view_product', product_id=product.id) }}">
+                  <img src="{{ url_for('uploaded_file', filename=product.image_path.split('/')[-1]) }}" 
+                       alt="{{ product.title }}" class="product-thumbnail">
+                </a>
+              {% else %}
+                <a href="{{ url_for('view_product', product_id=product.id) }}">
+                  <div class="no-image-placeholder">
+                    <i class="no-image-icon">🖼️</i>
+                  </div>
+                </a>
+              {% endif %}
+            </div>
+            <div class="card-body">
+              <h5 class="card-title">
+                <a href="{{ url_for('view_product', product_id=product.id) }}" class="product-title">
+                  {{ product.title }}
+                </a>
+              </h5>
+              <p class="card-text">가격: {{ product.price }}원</p>
+            </div>
+            <div class="card-footer">
+              <div class="d-flex justify-content-between">
+                <a href="{{ url_for('view_product', product_id=product.id) }}" class="btn btn-sm btn-outline-primary">상세보기</a>
+                {% if product.seller_id != session.user_id %}
+                  <a href="{{ url_for('report', target_name=product.title, target_type='product') }}" class="btn btn-sm btn-outline-warning">신고</a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="col-12">
+          <div class="alert alert-info">등록된 상품이 없습니다.</div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <h3>실시간 채팅</h3>
+  <div id="chat" class="card mb-4">
+    <div id="messages" class="card-body" style="height: 300px; overflow-y: auto;"></div>
+    <div class="card-footer">
+      <div class="input-group">
+        <input id="chat_input" type="text" class="form-control" placeholder="메시지를 입력하세요">
+        <div class="input-group-append">
+          <button onclick="sendMessage()" id="send_button" class="btn btn-primary">전송</button>
+        </div>
       </div>
     </div>
-  {% endfor %}
-</div>
-<p><a href="{{ url_for('new_product') }}" class="btn btn-primary">새 상품 등록</a></p>
-
-<h3>실시간 채팅</h3>
-<div id="chat">
-  <div id="messages" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;"></div>
-  <div style="display: flex;">
-    <input id="chat_input" type="text" placeholder="메시지를 입력하세요" style="flex-grow: 1; margin-right: 10px;">
-    <button onclick="sendMessage()" id="send_button" style="width: 80px;">전송</button>
   </div>
 </div>
 
@@ -101,24 +153,49 @@
 </script>
 
 <style>
-  .product-list {
+  .product-grid {
     margin-bottom: 20px;
   }
   
-  .product-item {
+  .product-card {
+    transition: all 0.3s ease;
+  }
+  
+  .product-card:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transform: translateY(-5px);
+  }
+  
+  .product-thumbnail {
+    max-height: 150px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+  }
+  
+  .no-image-placeholder {
+    height: 150px;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
-    padding: 10px;
-    border-bottom: 1px solid #e0e0e0;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+    margin: 0 10px;
   }
   
-  .product-info {
-    flex-grow: 1;
+  .no-image-icon {
+    font-size: 48px;
+    color: #adb5bd;
   }
   
-  .product-actions {
-    margin-left: 10px;
+  .product-title {
+    color: #333;
+    text-decoration: none;
+  }
+  
+  .product-title:hover {
+    color: #007bff;
+    text-decoration: none;
   }
   
   .search-bar {

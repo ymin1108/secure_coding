@@ -4,22 +4,113 @@
 <div class="container mt-5">
     <h2>상품 수정</h2>
     
-    <form method="post">
+    <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+        
         <div class="form-group">
             <label for="title">제목</label>
-            <input type="text" class="form-control" id="title" name="title" value="{{ product.title }}" required>
+            <input type="text" class="form-control" id="title" name="title" value="{{ product.title }}" required minlength="2" maxlength="100">
+            <small class="form-text text-muted">2-100자 사이로 입력해주세요.</small>
         </div>
+        
         <div class="form-group">
             <label for="description">설명</label>
-            <textarea class="form-control" id="description" name="description" rows="5" required>{{ product.description }}</textarea>
+            <textarea class="form-control" id="description" name="description" rows="5" required minlength="10" maxlength="1000">{{ product.description }}</textarea>
+            <small class="form-text text-muted">10-1000자 사이로 입력해주세요.</small>
         </div>
+        
         <div class="form-group">
             <label for="price">가격</label>
-            <input type="text" class="form-control" id="price" name="price" value="{{ product.price }}" required>
+            <div class="input-group">
+                <input type="text" class="form-control" id="price" name="price" value="{{ product.price }}" required pattern="[0-9]+">
+                <div class="input-group-append">
+                    <span class="input-group-text">원</span>
+                </div>
+            </div>
+            <small class="form-text text-muted">숫자만 입력해주세요.</small>
         </div>
+        
+        <div class="form-group">
+            <label for="image">상품 이미지</label>
+            
+            {% if product.image_path %}
+                <div class="mb-3">
+                    <div class="current-image">
+                        <p>현재 이미지:</p>
+                        <img src="{{ url_for('uploaded_file', filename=product.image_path.split('/')[-1]) }}" alt="현재 상품 이미지" style="max-width: 100%; max-height: 200px; object-fit: contain;">
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="delete_image" name="delete_image" value="yes">
+                        <label class="form-check-label" for="delete_image">
+                            이미지 삭제하기
+                        </label>
+                    </div>
+                </div>
+            {% endif %}
+            
+            <div class="custom-file">
+                <input type="file" class="custom-file-input" id="image" name="image" accept=".png, .jpg, .jpeg, .gif">
+                <label class="custom-file-label" for="image">
+                    {% if product.image_path %}새 이미지 선택 (선택사항){% else %}이미지 선택 (선택사항){% endif %}
+                </label>
+            </div>
+            <small class="form-text text-muted">PNG, JPG, JPEG, GIF 파일 형식만 가능합니다. 최대 10MB.</small>
+            
+            <div class="mt-2 d-none" id="image-preview-container">
+                <p>새 이미지 미리보기:</p>
+                <img id="image-preview" src="#" alt="이미지 미리보기" style="max-width: 100%; max-height: 200px; object-fit: contain;">
+            </div>
+        </div>
+        
         <button type="submit" class="btn btn-primary">저장</button>
         <a href="{{ url_for('my_products') }}" class="btn btn-secondary">취소</a>
     </form>
 </div>
+
+<script>
+    // 파일 선택 시 레이블에 파일 이름 표시 및 이미지 미리보기
+    document.getElementById('image').addEventListener('change', function (e) {
+        var fileName = e.target.files[0]?.name || '{% if product.image_path %}새 이미지 선택 (선택사항){% else %}이미지 선택 (선택사항){% endif %}';
+        var label = document.querySelector('.custom-file-label');
+        label.textContent = fileName;
+        
+        // 이미지 미리보기
+        var preview = document.getElementById('image-preview');
+        var previewContainer = document.getElementById('image-preview-container');
+        
+        if (e.target.files && e.target.files[0]) {
+            var reader = new FileReader();
+            
+            reader.onload = function(event) {
+                preview.src = event.target.result;
+                previewContainer.classList.remove('d-none');
+            }
+            
+            reader.readAsDataURL(e.target.files[0]);
+        } else {
+            previewContainer.classList.add('d-none');
+        }
+    });
+    
+    // 이미지 삭제 체크박스 토글
+    var deleteImageCheckbox = document.getElementById('delete_image');
+    if (deleteImageCheckbox) {
+        deleteImageCheckbox.addEventListener('change', function() {
+            var imageInput = document.getElementById('image');
+            var imageInputLabel = document.querySelector('.custom-file-label');
+            var imagePreviewContainer = document.getElementById('image-preview-container');
+            
+            if (this.checked) {
+                // 파일 입력 비활성화
+                imageInput.disabled = true;
+                imageInputLabel.classList.add('disabled');
+                imagePreviewContainer.classList.add('d-none');
+            } else {
+                // 파일 입력 활성화
+                imageInput.disabled = false;
+                imageInputLabel.classList.remove('disabled');
+            }
+        });
+    }
+</script>
 {% endblock %}

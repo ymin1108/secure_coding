@@ -9,6 +9,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_socketio import SocketIO, send, emit, join_room, leave_room
 from functools import wraps
 import bleach
+from werkzeug.utils import secure_filename
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(16)  # 랜덤 시크릿 키 생성
@@ -117,6 +119,19 @@ def close_connection(exception):
     if db is not None:
         db.close()
 
+# 이미지 업로드 관련 설정
+UPLOAD_FOLDER = 'uploads/products'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 최대 10MB 제한
+
+# 업로드 폴더가 없으면 생성
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# 파일 확장자 확인 함수
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 # 테이블 생성 (최초 실행 시에만) - 'balance' 필드 추가
 def init_db():
     with app.app_context():
@@ -138,19 +153,29 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # 상품 테이블 생성
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS product (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                description TEXT NOT NULL,
-                price TEXT NOT NULL,
-                seller_id TEXT NOT NULL,
-                status TEXT DEFAULT 'active',
-                report_count INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        # product 테이블에 image_path 추가 (테이블이 존재하는지 확인)
+        cursor.execute("PRAGMA table_info(product)")
+        columns = cursor.fetchall()
+        column_names = [column['name'] for column in columns]
+
+        # 테이블이 이미 존재하고 image_path 필드가 없는 경우 추가
+        if 'image_path' not in column_names and columns:
+            cursor.execute("ALTER TABLE product ADD COLUMN image_path TEXT")
+        # 테이블이 없는 경우 image_path 포함하여 새로 생성
+        else:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS product (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    price TEXT NOT NULL,
+                    seller_id TEXT NOT NULL,
+                    image_path TEXT,
+                    status TEXT DEFAULT 'active',
+                    report_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
         # 신고 테이블 생성
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS report (
@@ -220,6 +245,11 @@ def init_db():
         # 기존 사용자에게 기본 잔액 부여 (잔액이 NULL인 경우)
         cursor.execute("UPDATE user SET balance = 10000 WHERE balance IS NULL")
         db.commit()
+        
+# 업로드된 이미지 제공을 위한 라우트
+@app.route('/uploads/products/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # 감사 로그 기록 함수
 def log_action(user_id, action, details=None):
@@ -236,8 +266,7 @@ def log_action(user_id, action, details=None):
 # 보안 헤더 설정
 @app.after_request
 def add_security_headers(response):
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline';"
-    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     return response
@@ -487,7 +516,7 @@ def change_password():
     
     return render_template('change_password.html')
 
-# 상품 등록
+# 상품 등록 (이미지 업로드 기능 추가)
 @app.route('/product/new', methods=['GET', 'POST'])
 @login_required
 def new_product():
@@ -500,7 +529,7 @@ def new_product():
         try:
             title = sanitize_input(request.form['title'])
             description = sanitize_input(request.form['description'])
-            price = sanitize_input(request.form['price'], check_banned=False)  # 가격은 금지어 검사 제외
+            price = sanitize_input(request.form['price'])
             
             # 입력값 검증
             if not title or len(title) < 2 or len(title) > 100:
@@ -519,9 +548,24 @@ def new_product():
             cursor = db.cursor()
             product_id = str(uuid.uuid4())
             
+            # 이미지 업로드 처리
+            image_path = None
+            if 'image' in request.files and request.files['image'].filename:
+                file = request.files['image']
+                if allowed_file(file.filename):
+                    # 안전한 파일명으로 변환 (UUID + 원본 확장자)
+                    filename = f"{uuid.uuid4().hex}.{file.filename.rsplit('.', 1)[1].lower()}"
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file.save(file_path)
+                    image_path = f"uploads/products/{filename}"
+                else:
+                    flash('허용되지 않는 파일 형식입니다. (PNG, JPG, JPEG, GIF만 가능)')
+                    return redirect(url_for('new_product'))
+            
+            # 상품 정보 저장 (이미지 경로 포함)
             cursor.execute(
-                "INSERT INTO product (id, title, description, price, seller_id) VALUES (?, ?, ?, ?, ?)",
-                (product_id, title, description, price, session['user_id'])
+                "INSERT INTO product (id, title, description, price, seller_id, image_path) VALUES (?, ?, ?, ?, ?, ?)",
+                (product_id, title, description, price, session['user_id'], image_path)
             )
             db.commit()
             
@@ -708,16 +752,24 @@ def message_list():
     
     # 참여 중인 채팅방 목록 조회
     cursor.execute("""
-        SELECT cr.id, cr.name, cp.user_id as participant_id, u.username as participant_name,
-               (SELECT COUNT(*) FROM private_message WHERE receiver_id = ? AND sender_id = participant_id AND is_read = 0) as unread_count,
-               (SELECT message FROM private_message WHERE (sender_id = ? AND receiver_id = participant_id) OR (sender_id = participant_id AND receiver_id = ?) ORDER BY created_at DESC LIMIT 1) as last_message,
-               (SELECT created_at FROM private_message WHERE (sender_id = ? AND receiver_id = participant_id) OR (sender_id = participant_id AND receiver_id = ?) ORDER BY created_at DESC LIMIT 1) as last_message_time
-        FROM chat_room cr
-        JOIN chat_participant cp ON cr.id = cp.room_id
-        JOIN user u ON cp.user_id = u.id
-        WHERE cr.id IN (SELECT room_id FROM chat_participant WHERE user_id = ?)
-        AND cp.user_id != ?
+    SELECT cr.id, cr.name, cp.user_id as participant_id, u.username as participant_name,
+           (SELECT COUNT(*) FROM private_message 
+            WHERE receiver_id = ? AND sender_id = cp.user_id AND is_read = 0) as unread_count,
+           (SELECT message FROM private_message 
+            WHERE (sender_id = ? AND receiver_id = cp.user_id) OR 
+                  (sender_id = cp.user_id AND receiver_id = ?) 
+            ORDER BY created_at DESC LIMIT 1) as last_message,
+           (SELECT created_at FROM private_message 
+            WHERE (sender_id = ? AND receiver_id = cp.user_id) OR 
+                  (sender_id = cp.user_id AND receiver_id = ?) 
+            ORDER BY created_at DESC LIMIT 1) as last_message_time
+    FROM chat_room cr
+    JOIN chat_participant cp ON cr.id = cp.room_id
+    JOIN user u ON cp.user_id = u.id
+    WHERE cr.id IN (SELECT room_id FROM chat_participant WHERE user_id = ?)
+    AND cp.user_id != ?
     """, (session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id']))
+
     
     chat_rooms = cursor.fetchall()
     
@@ -1231,7 +1283,7 @@ def my_products():
     
     return render_template('my_products.html', products=products)
 
-# 상품 수정 페이지
+# 상품 수정 페이지 (이미지 업로드 기능 추가)
 @app.route('/product/<product_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_product(product_id):
@@ -1274,10 +1326,34 @@ def edit_product(product_id):
             flash('가격은 숫자만 입력 가능합니다.')
             return redirect(url_for('edit_product', product_id=product_id))
         
+        # 이미지 업로드 처리
+        image_path = product['image_path']  # 기존 이미지 경로 유지
+        if 'image' in request.files and request.files['image'].filename:
+            file = request.files['image']
+            if allowed_file(file.filename):
+                # 이전 이미지 파일 삭제 (있는 경우)
+                if image_path and os.path.exists(os.path.join(app.root_path, image_path)):
+                    os.remove(os.path.join(app.root_path, image_path))
+                
+                # 새 이미지 저장
+                filename = f"{uuid.uuid4().hex}.{file.filename.rsplit('.', 1)[1].lower()}"
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                image_path = f"uploads/products/{filename}"
+            else:
+                flash('허용되지 않는 파일 형식입니다. (PNG, JPG, JPEG, GIF만 가능)')
+                return redirect(url_for('edit_product', product_id=product_id))
+        
+        # 이미지 삭제 옵션 처리
+        if request.form.get('delete_image') == 'yes' and image_path:
+            if os.path.exists(os.path.join(app.root_path, image_path)):
+                os.remove(os.path.join(app.root_path, image_path))
+            image_path = None
+        
         # 상품 정보 업데이트
         cursor.execute(
-            "UPDATE product SET title = ?, description = ?, price = ? WHERE id = ?",
-            (title, description, price, product_id)
+            "UPDATE product SET title = ?, description = ?, price = ?, image_path = ? WHERE id = ?",
+            (title, description, price, image_path, product_id)
         )
         db.commit()
         
@@ -1289,7 +1365,7 @@ def edit_product(product_id):
     
     return render_template('edit_product.html', product=product)
 
-# 상품 삭제
+# 상품 삭제 (이미지 파일도 함께 삭제)
 @app.route('/product/<product_id>/delete', methods=['POST'])
 @login_required
 def delete_product(product_id):
@@ -1314,6 +1390,10 @@ def delete_product(product_id):
         flash('자신의 상품만 삭제할 수 있습니다.')
         return redirect(url_for('dashboard'))
     
+    # 이미지 파일 삭제
+    if product['image_path'] and os.path.exists(os.path.join(app.root_path, product['image_path'])):
+        os.remove(os.path.join(app.root_path, product['image_path']))
+    
     # 상품 삭제
     cursor.execute("DELETE FROM product WHERE id = ?", (product_id,))
     db.commit()
@@ -1324,7 +1404,7 @@ def delete_product(product_id):
     flash('상품이 삭제되었습니다.')
     return redirect(url_for('my_products'))
 
-# 관리자: 상품 완전 삭제
+# 관리자: 상품 완전 삭제 (이미지 파일도 함께 삭제)
 @app.route('/admin/products/<product_id>/delete', methods=['POST'])
 @admin_required
 def admin_delete_product(product_id):
@@ -1343,6 +1423,10 @@ def admin_delete_product(product_id):
     if not product:
         flash('존재하지 않는 상품입니다.')
         return redirect(url_for('admin_products'))
+    
+    # 이미지 파일 삭제
+    if product['image_path'] and os.path.exists(os.path.join(app.root_path, product['image_path'])):
+        os.remove(os.path.join(app.root_path, product['image_path']))
     
     # 데이터베이스에서 상품 삭제
     cursor.execute("DELETE FROM product WHERE id = ?", (product_id,))
