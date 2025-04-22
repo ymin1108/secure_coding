@@ -439,8 +439,13 @@ def dashboard():
     cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
     current_user = cursor.fetchone()
     
-    # 모든 상품 조회 (불량 상품 제외)
-    cursor.execute("SELECT * FROM product WHERE status != 'blocked'")
+    # 모든 상품 조회 (불량 상품 및 휴면 사용자 상품 제외)
+    cursor.execute("""
+        SELECT p.* 
+        FROM product p
+        JOIN user u ON p.seller_id = u.id
+        WHERE p.status != 'blocked' AND u.status != 'dormant'
+    """)
     all_products = cursor.fetchall()
     
     # 읽지 않은 메시지 수 조회
@@ -601,16 +606,26 @@ def view_product(product_id):
     db = get_db()
     cursor = db.cursor()
     
-    cursor.execute("SELECT * FROM product WHERE id = ?", (product_id,))
+    # 상품과 판매자 정보 함께 조회
+    cursor.execute("""
+        SELECT p.*, u.status as seller_status 
+        FROM product p
+        JOIN user u ON p.seller_id = u.id
+        WHERE p.id = ?
+    """, (product_id,))
     product = cursor.fetchone()
     
     if not product:
         flash('상품을 찾을 수 없습니다.')
         return redirect(url_for('dashboard'))
     
-    # 차단된 상품인 경우 접근 제한
+    # 차단된 상품이거나 휴면 사용자의 상품인 경우 접근 제한
     if product['status'] == 'blocked':
         flash('이 상품은 신고로 인해 차단되었습니다.')
+        return redirect(url_for('dashboard'))
+    
+    if product['seller_status'] == 'dormant':
+        flash('이 상품의 판매자는 현재 접근할 수 없습니다.')
         return redirect(url_for('dashboard'))
     
     # 판매자 정보 조회
@@ -764,7 +779,7 @@ def message_list():
     db = get_db()
     cursor = db.cursor()
     
-    # 참여 중인 채팅방 목록 조회
+    # 참여 중인 채팅방 목록 조회 (휴면 사용자 제외)
     cursor.execute("""
     SELECT cr.id, cr.name, cp.user_id as participant_id, u.username as participant_name,
            (SELECT COUNT(*) FROM private_message 
@@ -782,6 +797,7 @@ def message_list():
     JOIN user u ON cp.user_id = u.id
     WHERE cr.id IN (SELECT room_id FROM chat_participant WHERE user_id = ?)
     AND cp.user_id != ?
+    AND u.status != 'dormant'
     """, (session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id']))
 
     
@@ -806,6 +822,11 @@ def chat_room(user_id):
     
     if not other_user:
         flash('존재하지 않는 사용자입니다.')
+        return redirect(url_for('message_list'))
+    
+    # 휴면 상태 사용자와의 채팅 방지
+    if other_user['status'] == 'dormant':
+        flash('이 사용자는 현재 접근할 수 없습니다.')
         return redirect(url_for('message_list'))
     
     # 채팅방 확인 또는 생성
@@ -1508,12 +1529,14 @@ def search_product():
         db = get_db()
         cursor = db.cursor()
         
-        # 제목이나 설명에 검색어가 포함된 상품 검색 (차단된 상품 제외)
+        # 제목이나 설명에 검색어가 포함된 상품 검색 (차단된 상품 및 휴면 사용자 상품 제외)
         cursor.execute("""
             SELECT p.*, u.username as seller_name
             FROM product p
             JOIN user u ON p.seller_id = u.id
-            WHERE (p.title LIKE ? OR p.description LIKE ?) AND p.status != 'blocked'
+            WHERE (p.title LIKE ? OR p.description LIKE ?) 
+            AND p.status != 'blocked'
+            AND u.status != 'dormant'
             ORDER BY p.created_at DESC
         """, (f'%{search_term}%', f'%{search_term}%'))
         
