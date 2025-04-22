@@ -503,7 +503,7 @@ def change_password():
         
         # 새 비밀번호 유효성 검사
         if not validate_password(new_password):
-            flash('새 비밀번호는 8자 이상 50자 이하여야 합니다.')
+            flash('새 비밀번호는 숫자, 알파벳 소문자 포함 8자 이상 12자 이하여야 합니다.')
             return redirect(url_for('change_password'))
         
         # 새 비밀번호 확인
