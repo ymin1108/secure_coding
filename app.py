@@ -60,8 +60,26 @@ def validate_username(username):
     return bool(pattern.match(username))
 
 def validate_password(password):
-    # 비밀번호는 최소 8자 이상, 최대 50자 이하
-    return 8 <= len(password) <= 50
+    # 비밀번호 길이 검증 (8-12자)
+    if not (8 <= len(password) <= 12):
+        return False
+    
+    # 소문자 포함 여부 검증
+    has_lowercase = False
+    for char in password:
+        if char.islower():
+            has_lowercase = True
+            break
+    
+    # 숫자 포함 여부 검증
+    has_digit = False
+    for char in password:
+        if char.isdigit():
+            has_digit = True
+            break
+    
+    # 모든 조건을 만족해야 True 반환
+    return has_lowercase and has_digit
 
 def validate_price(price):
     # 가격은 숫자만 허용
@@ -300,12 +318,8 @@ def register():
         password = request.form['password']
         
         # 입력값 검증
-        if not validate_username(username):
-            flash('사용자명은 3-20자의 알파벳, 숫자, 언더스코어만 사용 가능합니다.')
-            return redirect(url_for('register'))
-        
         if not validate_password(password):
-            flash('비밀번호는 8자 이상 50자 이하여야 합니다.')
+            flash('비밀번호는 8-12자 사이이며, 최소 하나의 소문자와 숫자를 포함해야 합니다.')
             return redirect(url_for('register'))
         
         db = get_db()
