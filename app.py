@@ -298,6 +298,59 @@ def page_not_found(e):
 def internal_server_error(e):
     return render_template('error.html', error='서버 오류가 발생했습니다.'), 500
 
+# 1. 재인증 관련 상수 정의
+REAUTHENTICATION_TIMEOUT = 30 * 60  # 30분 (초 단위)
+SENSITIVE_ACTIONS = ['change_password', 'transfer', 'update_profile', 'delete_account']
+
+# 2. 민감 작업 재인증 필요 데코레이터
+def sensitive_action_requires_reauth(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # 마지막 인증 시간 확인
+        last_auth_time = session.get('auth_time', 0)
+        current_time = datetime.now().timestamp()
+        
+        # 지정된 시간이 지났는지 확인 (30분)
+        if current_time - last_auth_time > REAUTHENTICATION_TIMEOUT:
+            # 현재 요청한 URL을 세션에 저장
+            session['next_url'] = request.url
+            flash('보안을 위해 재인증이 필요합니다.')
+            return redirect(url_for('reauthenticate'))
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+# 3. 재인증 라우트 추가
+@app.route('/reauthenticate', methods=['GET', 'POST'])
+@login_required
+def reauthenticate():
+    if request.method == 'POST':
+        # CSRF 토큰 검증
+        if not validate_csrf_token():
+            flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
+            return redirect(url_for('reauthenticate'))
+        
+        password = request.form['password']
+        
+        # 사용자 정보 조회
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute("SELECT password FROM user WHERE id = ?", (session['user_id'],))
+        user = cursor.fetchone()
+        
+        if user and verify_password(user['password'], password):
+            # 인증 성공, 인증 시간 업데이트
+            session['auth_time'] = datetime.now().timestamp()
+            
+            # 원래 요청했던 URL로 리다이렉트
+            next_url = session.pop('next_url', url_for('dashboard'))
+            flash('재인증이 완료되었습니다.')
+            return redirect(next_url)
+        
+        flash('비밀번호가 일치하지 않습니다.')
+    
+    return render_template('reauthenticate.html')
+
 # 기본 라우트
 @app.route('/')
 def index():
@@ -403,6 +456,7 @@ def login():
         
         # 로그인 성공 처리
         session.clear()
+        session['auth_time'] = datetime.now().timestamp()
         session['user_id'] = user['id']
         session['is_admin'] = bool(user['is_admin'])  # 관리자 여부 세션에 저장
         session.permanent = True  # 세션 만료 시간 적용
@@ -470,8 +524,19 @@ def profile():
             flash('보안 토큰이 유효하지 않습니다. 다시 시도해주세요.')
             return redirect(url_for('profile'))
         
+        # 재인증 필요 확인 (시간 기반)
+        last_auth_time = session.get('auth_time', 0)
+        current_time = datetime.now().timestamp()
+        
+        if current_time - last_auth_time > REAUTHENTICATION_TIMEOUT:
+            session['next_url'] = url_for('profile')
+            flash('프로필 수정을 위해 재인증이 필요합니다.')
+            return redirect(url_for('reauthenticate'))
+        
+        # 입력값 가져오기 및 필터링
         bio = sanitize_input(request.form.get('bio', ''))
         
+        # 데이터베이스 업데이트
         cursor.execute("UPDATE user SET bio = ? WHERE id = ?", (bio, session['user_id']))
         db.commit()
         
@@ -481,6 +546,7 @@ def profile():
         flash('프로필이 업데이트되었습니다.')
         return redirect(url_for('profile'))
     
+    # GET 요청 처리 (프로필 페이지 로드)
     # 사용자 정보와 잔액을 함께 조회
     cursor.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],))
     current_user = cursor.fetchone()
@@ -490,6 +556,7 @@ def profile():
 # 비밀번호 변경 페이지
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
+@sensitive_action_requires_reauth
 def change_password():
     if request.method == 'POST':
         # CSRF 토큰 검증
@@ -1582,6 +1649,7 @@ def balance():
 # 송금 페이지
 @app.route('/transfer', methods=['GET', 'POST'])
 @login_required
+@sensitive_action_requires_reauth
 def transfer():
     # 잔액 조회를 먼저 수행 (모든 경로에서 필요함)
     db = get_db()
