@@ -44,7 +44,6 @@ app.jinja_env.globals['csrf_token'] = generate_csrf_token
 def hash_password(password, salt=None):
     if salt is None:
         salt = secrets.token_hex(8)
-    # SHA-256 해시 함수 사용 (실제 운영 환경에서는 bcrypt 등 더 강력한 알고리즘 권장)
     hashed = hashlib.sha256((password + salt).encode()).hexdigest()
     return f"{salt}${hashed}"
 
@@ -428,7 +427,6 @@ def login():
             # 5회 이상 실패 시 지연 적용
             if login_attempts[ip] >= 5:
                 flash('로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요.')
-                # 실제 운영 환경에서는 IP 기반 차단 또는 계정 잠금 로직 추가
                 return redirect(url_for('login'))
             
             flash('아이디 또는 비밀번호가 올바르지 않습니다.')
