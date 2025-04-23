@@ -12,6 +12,19 @@ if you don't have a miniconda(or anaconda), you can install it on this url. - ht
 git clone https://github.com/ugonfor/secure-coding
 conda env create -f enviroments.yaml
 ```
+```
+pip install flask
+pip install flask-socketio
+pip install bleach
+pip install werkzeug
+```
+
+## credentials
+test:p@ssw0rd
+test2:12345678
+user:p@ssw0rd
+admin:12345678
+패스워드가 12345678인 것은 패스워드 정책을 설정하기 전에 생성했던 계정이라서 그렇습니다.
 
 ## usage
 
